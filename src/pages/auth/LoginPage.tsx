@@ -1,20 +1,27 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 
-interface LoginPageProps {
-  onLogin: (userType: 'recruiter' | 'student') => void;
-}
-
-export default function LoginPage({ onLogin }: LoginPageProps) {
+export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [userType, setUserType] = useState<'recruiter' | 'student'>('recruiter');
+  const [error, setError] = useState('');
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - in real app would validate credentials
-    onLogin(userType);
+    setError('');
+
+    const response = login(email, password);
+    if (response.success && response.user) {
+      // Navigate based on user type
+      const redirectPath = response.user.userType === 'student' ? '/student/dashboard' : '/dashboard';
+      navigate(redirectPath);
+    } else {
+      setError(response.message || 'Login failed');
+    }
   };
 
   return (
@@ -28,31 +35,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <p className="text-gray-600">Sign in to continue</p>
         </div>
 
-        {/* User Type Selector */}
-        <div className="flex gap-2 mb-6">
-          <button
-            type="button"
-            onClick={() => setUserType('recruiter')}
-            className={`flex-1 py-3 rounded-lg transition-all ${
-              userType === 'recruiter'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Recruiter
-          </button>
-          <button
-            type="button"
-            onClick={() => setUserType('student')}
-            className={`flex-1 py-3 rounded-lg transition-all ${
-              userType === 'student'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            Job Seeker
-          </button>
-        </div>
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -99,7 +87,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
             type="submit"
             className="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition-colors"
           >
-            Sign In as {userType === 'recruiter' ? 'Recruiter' : 'Job Seeker'}
+            Sign In
           </button>
 
           <div className="relative my-6">

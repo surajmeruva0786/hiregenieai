@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useAuth } from './hooks/useAuth';
 import LoginPage from './pages/auth/LoginPage';
 import SignupPage from './pages/auth/SignupPage';
 import HomePage from './pages/public/HomePage';
@@ -33,17 +33,18 @@ import StudentProfile from './pages/student/StudentProfile';
 import TakeInterview from './pages/student/TakeInterview';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userType, setUserType] = useState<'recruiter' | 'student'>('recruiter');
+  const { currentUser, isAuthenticated, isLoading, logout } = useAuth();
 
-  const handleLogin = (type: 'recruiter' | 'student' = 'recruiter') => {
-    setIsAuthenticated(true);
-    setUserType(type);
-  };
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div>Loading...</div>
+      </div>
+    );
+  }
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-  };
+  const userType = currentUser?.userType || 'recruiter';
 
   return (
     <Router>
@@ -54,15 +55,15 @@ function App() {
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
-        
+
         {/* Auth Routes */}
-        <Route 
-          path="/login" 
-          element={isAuthenticated ? <Navigate to={userType === 'student' ? '/student/dashboard' : '/dashboard'} /> : <LoginPage onLogin={handleLogin} />} 
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to={userType === 'student' ? '/student/dashboard' : '/dashboard'} /> : <LoginPage />}
         />
-        <Route 
-          path="/signup" 
-          element={isAuthenticated ? <Navigate to={userType === 'student' ? '/student/dashboard' : '/dashboard'} /> : <SignupPage onSignup={handleLogin} />} 
+        <Route
+          path="/signup"
+          element={isAuthenticated ? <Navigate to={userType === 'student' ? '/student/dashboard' : '/dashboard'} /> : <SignupPage />}
         />
 
         {/* Recruiter Dashboard Routes */}
@@ -70,7 +71,7 @@ function App() {
           path="/dashboard"
           element={
             isAuthenticated && userType === 'recruiter' ? (
-              <DashboardLayout onLogout={handleLogout} />
+              <DashboardLayout onLogout={logout} />
             ) : (
               <Navigate to="/login" />
             )
@@ -96,7 +97,7 @@ function App() {
           path="/student"
           element={
             isAuthenticated && userType === 'student' ? (
-              <StudentDashboardLayout onLogout={handleLogout} />
+              <StudentDashboardLayout onLogout={logout} />
             ) : (
               <Navigate to="/login" />
             )

@@ -4,9 +4,6 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { connectPostgres } from './config/postgres';
-import { connectMongoDB } from './config/mongodb';
-import { connectRedis } from './config/redis';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/error.middleware';
 import routes from './routes';
@@ -29,9 +26,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
     res.status(200).json({
         status: 'healthy',
+        mode: 'localStorage',
+        message: 'Running in localStorage mode - no database required',
         timestamp: new Date().toISOString(),
         uptime: process.uptime()
     });
@@ -43,19 +42,17 @@ app.use('/api', routes);
 // Error handling middleware (must be last)
 app.use(errorHandler);
 
-// Initialize database connections and start server
+// Start server without database connections
 const startServer = async () => {
     try {
-        // Connect to databases
-        await connectPostgres();
-        await connectMongoDB();
-        await connectRedis();
+        logger.info('🎯 Starting in localStorage mode (no database required)');
 
         // Start server
         app.listen(PORT, () => {
             logger.info(`🚀 Server running on port ${PORT}`);
             logger.info(`📊 Environment: ${process.env.NODE_ENV}`);
-            logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`);
+            logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
+            logger.info(`💾 Data persistence: localStorage (client-side)`);
         });
     } catch (error) {
         logger.error('Failed to start server:', error);

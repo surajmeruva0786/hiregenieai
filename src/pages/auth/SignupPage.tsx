@@ -1,23 +1,41 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Building2, Mail, Lock, User } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 
-interface SignupPageProps {
-  onSignup: (userType: 'recruiter' | 'student') => void;
-}
-
-export default function SignupPage({ onSignup }: SignupPageProps) {
+export default function SignupPage() {
   const [userType, setUserType] = useState<'recruiter' | 'student'>('recruiter');
   const [companyName, setCompanyName] = useState('');
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('recruiter');
+  const [error, setError] = useState('');
+  const { register } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock signup - in real app would create account
-    onSignup(userType);
+    setError('');
+
+    // Prepare user data based on user type
+    const userData = {
+      email,
+      password,
+      firstName: userType === 'student' ? firstName : companyName.split(' ')[0],
+      lastName: userType === 'student' ? lastName : companyName.split(' ').slice(1).join(' ') || 'Company',
+      userType,
+      organizationName: userType === 'recruiter' ? companyName : undefined
+    };
+
+    const response = register(userData);
+    if (response.success && response.user) {
+      // Navigate based on user type
+      const redirectPath = response.user.userType === 'student' ? '/student/dashboard' : '/dashboard';
+      navigate(redirectPath);
+    } else {
+      setError(response.message || 'Registration failed');
+    }
   };
 
   return (
@@ -36,26 +54,31 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
           <button
             type="button"
             onClick={() => setUserType('recruiter')}
-            className={`flex-1 py-3 rounded-lg transition-all ${
-              userType === 'recruiter'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`flex-1 py-3 rounded-lg transition-all ${userType === 'recruiter'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             I'm Hiring
           </button>
           <button
             type="button"
             onClick={() => setUserType('student')}
-            className={`flex-1 py-3 rounded-lg transition-all ${
-              userType === 'student'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`flex-1 py-3 rounded-lg transition-all ${userType === 'student'
+              ? 'bg-indigo-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             I'm Job Seeking
           </button>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {userType === 'recruiter' ? (
@@ -74,40 +97,38 @@ export default function SignupPage({ onSignup }: SignupPageProps) {
                   />
                 </div>
               </div>
-
+            </>
+          ) : (
+            <>
               <div>
-                <label className="block text-gray-700 mb-2">Your Role</label>
+                <label className="block text-gray-700 mb-2">First Name</label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="John"
                     required
-                  >
-                    <option value="recruiter">Recruiter</option>
-                    <option value="hiring-manager">Hiring Manager</option>
-                    <option value="hr-lead">HR Lead</option>
-                    <option value="founder">Founder/CEO</option>
-                  </select>
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-gray-700 mb-2">Last Name</label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Doe"
+                    required
+                  />
                 </div>
               </div>
             </>
-          ) : (
-            <div>
-              <label className="block text-gray-700 mb-2">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  placeholder="John Doe"
-                  required
-                />
-              </div>
-            </div>
           )}
 
           <div>
