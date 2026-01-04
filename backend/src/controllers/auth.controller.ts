@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import { v4 as uuidv4 } from 'uuid';
 import { query } from '../config/postgres';
 import { JWTService } from '../auth/jwt.service';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
@@ -10,7 +9,7 @@ import { logger } from '../utils/logger';
  * Register new user and organization
  */
 export const register = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
         const {
             email,
             password,
@@ -100,7 +99,7 @@ export const register = asyncHandler(
  * Login user
  */
 export const login = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
         const { email, password } = req.body;
 
         // Validate input
@@ -170,7 +169,7 @@ export const login = asyncHandler(
  * Refresh access token
  */
 export const refreshToken = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
         const { refreshToken } = req.body;
 
         if (!refreshToken) {
@@ -201,7 +200,7 @@ export const refreshToken = asyncHandler(
  * Logout user (client-side token removal)
  */
 export const logout = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
         // In a more advanced implementation, you would blacklist the token
         // For now, we rely on client-side token removal
 
@@ -218,7 +217,7 @@ export const logout = asyncHandler(
  * Get current user
  */
 export const getCurrentUser = asyncHandler(
-    async (req: Request, res: Response, next: NextFunction) => {
+    async (req: Request, res: Response, _next: NextFunction) => {
         if (!req.user) {
             throw new AppError('Unauthorized', 401);
         }

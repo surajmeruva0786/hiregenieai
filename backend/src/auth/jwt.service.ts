@@ -1,10 +1,10 @@
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { AppError } from '../middleware/error.middleware';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+const JWT_SECRET: string = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_REFRESH_SECRET: string = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret';
+const JWT_EXPIRES_IN: string = process.env.JWT_EXPIRES_IN || '1h';
+const JWT_REFRESH_EXPIRES_IN: string = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
 export interface TokenPayload {
     userId: string;
@@ -20,7 +20,7 @@ export class JWTService {
     static generateAccessToken(payload: TokenPayload): string {
         return jwt.sign(payload, JWT_SECRET, {
             expiresIn: JWT_EXPIRES_IN,
-        });
+        } as SignOptions);
     }
 
     /**
@@ -29,7 +29,7 @@ export class JWTService {
     static generateRefreshToken(payload: TokenPayload): string {
         return jwt.sign(payload, JWT_REFRESH_SECRET, {
             expiresIn: JWT_REFRESH_EXPIRES_IN,
-        });
+        } as SignOptions);
     }
 
     /**
