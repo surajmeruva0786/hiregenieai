@@ -19,8 +19,11 @@ import { motion } from 'framer-motion';
 import StatCard from '../../components/dashboard/StatCard';
 import ActivityFeed from '../../components/dashboard/ActivityFeed';
 import QuickActions from '../../components/dashboard/QuickActions';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function Dashboard() {
+  const { currentUser } = useAuth();
+
   const stats = [
     {
       label: 'Active Jobs',
@@ -117,7 +120,7 @@ export default function Dashboard() {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
               <Sparkles className="w-8 h-8 text-yellow-300" />
-              <h1 className="text-white">Welcome back, John! 👋</h1>
+              <h1 className="text-white">Welcome back, {currentUser?.firstName || 'there'}! 👋</h1>
             </div>
             <p className="text-indigo-100">Here's what's happening with your hiring today</p>
           </div>

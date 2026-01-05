@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Briefcase, FileText, Video, TrendingUp, Target, Clock, Star, Zap } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function StudentDashboard() {
+  const { currentUser } = useAuth();
+
   const stats = [
     { label: 'Applications Sent', value: '12', icon: FileText, color: 'from-blue-500 to-cyan-500' },
     { label: 'Interviews', value: '3', icon: Video, color: 'from-purple-500 to-pink-500' },
@@ -34,7 +37,7 @@ export default function StudentDashboard() {
         <div className="relative">
           <div className="flex items-center gap-3 mb-2">
             <Zap className="w-8 h-8 text-yellow-300" />
-            <h1 className="text-white">Welcome back, John! 🚀</h1>
+            <h1 className="text-white">Welcome back, {currentUser?.firstName || 'there'}! 🚀</h1>
           </div>
           <p className="text-indigo-100 mb-4">Your next dream job is waiting for you</p>
           <div className="flex gap-3">
@@ -93,11 +96,10 @@ export default function StudentDashboard() {
                     </div>
                     <p className="text-gray-500">Match</p>
                   </div>
-                  <span className={`px-4 py-1.5 rounded-lg ${
-                    app.status === 'Interview Scheduled' ? 'bg-green-100 text-green-700' :
-                    app.status === 'Under Review' ? 'bg-blue-100 text-blue-700' :
-                    'bg-gray-100 text-gray-700'
-                  }`}>
+                  <span className={`px-4 py-1.5 rounded-lg ${app.status === 'Interview Scheduled' ? 'bg-green-100 text-green-700' :
+                      app.status === 'Under Review' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                    }`}>
                     {app.status}
                   </span>
                 </div>

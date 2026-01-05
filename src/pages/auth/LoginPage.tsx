@@ -14,17 +14,23 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
-    console.log('Attempting login with:', email);
+    console.log('LoginPage: Attempting login with:', email);
     const response = login(email, password);
-    console.log('Login response:', response);
+    console.log('LoginPage: Login response:', response.success);
 
     if (response.success && response.user) {
-      console.log('Login successful, redirecting...');
+      console.log('LoginPage: Login successful, user type:', response.user.userType);
+
       // Navigate based on user type
       const redirectPath = response.user.userType === 'student' ? '/student/dashboard' : '/dashboard';
-      navigate(redirectPath);
+      console.log('LoginPage: Redirecting to:', redirectPath);
+
+      // Use replace to avoid back button issues and add small delay for state to propagate
+      setTimeout(() => {
+        navigate(redirectPath, { replace: true });
+      }, 100);
     } else {
-      console.error('Login failed:', response.message);
+      console.error('LoginPage: Login failed:', response.message);
       setError(response.message || 'Login failed. Please check your credentials.');
     }
   };

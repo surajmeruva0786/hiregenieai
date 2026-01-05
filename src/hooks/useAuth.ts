@@ -9,26 +9,26 @@ export const useAuth = () => {
     useEffect(() => {
         // Check if user is already logged in
         const user = authService.getCurrentUser();
-        console.log('useAuth: Initial user check:', user);
+        console.log('useAuth: Initial user check:', user?.email || 'No user');
         setCurrentUser(user);
         setIsLoading(false);
     }, []);
 
     const register = (userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): AuthResponse => {
-        console.log('useAuth: Registering user');
+        console.log('useAuth: Registering user:', userData.email);
         const response = authService.register(userData);
         if (response.success && response.user) {
-            console.log('useAuth: Registration successful, setting current user');
+            console.log('useAuth: Registration successful, user:', response.user.email);
             setCurrentUser(response.user);
         }
         return response;
     };
 
     const login = (email: string, password: string): AuthResponse => {
-        console.log('useAuth: Attempting login');
+        console.log('useAuth: Attempting login for:', email);
         const response = authService.login(email, password);
         if (response.success && response.user) {
-            console.log('useAuth: Login successful, setting current user:', response.user);
+            console.log('useAuth: Login successful, user:', response.user.email, 'type:', response.user.userType);
             setCurrentUser(response.user);
         } else {
             console.error('useAuth: Login failed:', response.message);
@@ -45,12 +45,10 @@ export const useAuth = () => {
     // Compute isAuthenticated based on currentUser state (reactive)
     const isAuthenticated = currentUser !== null;
 
-    console.log('useAuth: Current state - isAuthenticated:', isAuthenticated, 'currentUser:', currentUser?.email);
-
     return {
         currentUser,
         isLoading,
-        isAuthenticated, // This is now reactive!
+        isAuthenticated,
         register,
         login,
         logout
