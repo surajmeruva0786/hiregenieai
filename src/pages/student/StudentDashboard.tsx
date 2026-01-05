@@ -1,29 +1,82 @@
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Briefcase, FileText, Video, TrendingUp, Target, Clock, Star, Zap } from 'lucide-react';
+import { Briefcase, FileText, Video, TrendingUp, Target, Zap, Plus } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { applicationService, jobService } from '../../services/localStorage.service';
 
 export default function StudentDashboard() {
   const { currentUser } = useAuth();
+  const [stats, setStats] = useState({
+    applications: 0,
+    interviews: 0,
+    profileViews: 0,
+    matchScore: '0%'
+  });
+  const [recentApplications, setRecentApplications] = useState<any[]>([]);
 
-  const stats = [
-    { label: 'Applications Sent', value: '12', icon: FileText, color: 'from-blue-500 to-cyan-500' },
-    { label: 'Interviews', value: '3', icon: Video, color: 'from-purple-500 to-pink-500' },
-    { label: 'Profile Views', value: '45', icon: TrendingUp, color: 'from-green-500 to-emerald-500' },
-    { label: 'Match Score', value: '85%', icon: Target, color: 'from-orange-500 to-red-500' },
+  useEffect(() => {
+    if (currentUser) {
+      // Get real applications data
+      const userApplications = applicationService.getByCandidate(currentUser.id);
+      const interviewCount = userApplications.filter(app => app.status === 'interview').length;
+
+      setStats({
+        applications: userApplications.length,
+        interviews: interviewCount,
+        profileViews: 0, // Would need tracking system
+        matchScore: '85%' // Would need matching algorithm
+      });
+
+      // Get recent applications with job details
+      const recent = userApplications.slice(0, 3).map(app => {
+        const job = jobService.getById(app.jobId);
+        return {
+          id: app.id,
+          company: job?.company || 'Unknown',
+          position: job?.title || 'Unknown Position',
+          status: app.status,
+          date: new Date(app.appliedAt).toLocaleDateString(),
+          matchScore: 85
+        };
+      });
+
+      setRecentApplications(recent);
+    }
+  }, [currentUser]);
+
+  const statsData = [
+    { label: 'Applications Sent', value: stats.applications.toString(), icon: FileText, color: 'from-blue-500 to-cyan-500' },
+    { label: 'Interviews', value: stats.interviews.toString(), icon: Video, color: 'from-purple-500 to-pink-500' },
+    { label: 'Profile Views', value: stats.profileViews.toString(), icon: TrendingUp, color: 'from-green-500 to-emerald-500' },
+    { label: 'Match Score', value: stats.matchScore, icon: Target, color: 'from-orange-500 to-red-500' },
   ];
 
-  const recentApplications = [
-    { id: 1, company: 'Tech Corp', position: 'Frontend Developer', status: 'Interview Scheduled', date: '2025-12-23', matchScore: 92 },
-    { id: 2, company: 'StartupX', position: 'Full Stack Developer', status: 'Under Review', date: '2025-12-22', matchScore: 88 },
-    { id: 3, company: 'Innovation Labs', position: 'React Developer', status: 'Application Sent', date: '2025-12-21', matchScore: 85 },
-  ];
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'interview':
+        return 'bg-green-100 text-green-700';
+      case 'reviewing':
+        return 'bg-blue-100 text-blue-700';
+      case 'pending':
+        return 'bg-gray-100 text-gray-700';
+      default:
+        return 'bg-gray-100 text-gray-700';
+    }
+  };
 
-  const recommendedJobs = [
-    { id: 1, company: 'Design Studio', position: 'Senior Frontend Developer', location: 'Remote', salary: '$120k-$160k', matchScore: 95 },
-    { id: 2, company: 'Cloud Solutions', position: 'React Developer', location: 'New York', salary: '$100k-$140k', matchScore: 90 },
-    { id: 3, company: 'AI Startup', position: 'Full Stack Engineer', location: 'San Francisco', salary: '$130k-$170k', matchScore: 88 },
-  ];
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'interview':
+        return 'Interview Scheduled';
+      case 'reviewing':
+        return 'Under Review';
+      case 'pending':
+        return 'Application Sent';
+      default:
+        return status;
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -53,7 +106,7 @@ export default function StudentDashboard() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
+        {statsData.map((stat, index) => (
           <motion.div
             key={index}
             initial={{ opacity: 0, y: 20 }}
@@ -66,16 +119,16 @@ export default function StudentDashboard() {
               <div className={`inline-flex p-3 bg-gradient-to-r ${stat.color} rounded-xl mb-4 shadow-lg transform group-hover:scale-110 transition-transform`}>
                 <stat.icon className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-gray-900 mb-1">{stat.value}</h3>
+              <h3 className="text-gray-900 mb-1 text-3xl font-bold">{stat.value}</h3>
               <p className="text-gray-600">{stat.label}</p>
             </div>
           </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Applications */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+      {/* Recent Applications or Get Started */}
+      {recentApplications.length > 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-gray-900">Recent Applications</h2>
             <Link to="/student/applications" className="text-indigo-600 hover:text-indigo-700">View All →</Link>
@@ -84,86 +137,39 @@ export default function StudentDashboard() {
             {recentApplications.map((app) => (
               <div key={app.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-md transition-all">
                 <div className="flex-1">
-                  <h3 className="text-gray-900">{app.position}</h3>
+                  <h3 className="text-gray-900 font-medium">{app.position}</h3>
                   <p className="text-gray-600">{app.company}</p>
-                  <p className="text-gray-500">{app.date}</p>
+                  <p className="text-gray-500 text-sm">{app.date}</p>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="text-center">
-                    <div className="flex items-center gap-1 text-green-600 mb-1">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span>{app.matchScore}%</span>
-                    </div>
-                    <p className="text-gray-500">Match</p>
-                  </div>
-                  <span className={`px-4 py-1.5 rounded-lg ${app.status === 'Interview Scheduled' ? 'bg-green-100 text-green-700' :
-                      app.status === 'Under Review' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                    }`}>
-                    {app.status}
-                  </span>
-                </div>
+                <span className={`px-4 py-1.5 rounded-lg ${getStatusColor(app.status)}`}>
+                  {getStatusLabel(app.status)}
+                </span>
               </div>
             ))}
           </div>
         </div>
-
-        {/* Upcoming Interviews */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-          <h2 className="text-gray-900 mb-6">Upcoming Interviews</h2>
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <Video className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <p className="text-gray-900">AI Interview</p>
-                  <p className="text-gray-600">Tech Corp</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600 mb-3">
-                <Clock className="w-4 h-4" />
-                <span>Tomorrow, 10:00 AM</span>
-              </div>
-              <Link to="/student/interviews/1" className="block w-full py-2 text-center bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
-                Join Interview
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recommended Jobs */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Target className="w-5 h-5 text-white" />
-            </div>
-            <h2 className="text-gray-900">Recommended for You</h2>
-          </div>
-          <Link to="/student/jobs" className="text-indigo-600 hover:text-indigo-700">View All →</Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {recommendedJobs.map((job) => (
-            <Link key={job.id} to={`/student/jobs/${job.id}`} className="group p-5 rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-lg transition-all">
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex-1">
-                  <h3 className="text-gray-900 group-hover:text-indigo-600 transition-colors">{job.position}</h3>
-                  <p className="text-gray-600">{job.company}</p>
-                </div>
-                <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-lg">
-                  <Star className="w-3 h-3 fill-current" />
-                  <span className="text-xs">{job.matchScore}%</span>
-                </div>
-              </div>
-              <p className="text-gray-600 mb-2">{job.location}</p>
-              <p className="text-indigo-600">{job.salary}</p>
+      ) : (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white rounded-2xl border border-gray-200 p-12 text-center shadow-sm"
+        >
+          <div className="max-w-md mx-auto">
+            <Briefcase className="w-16 h-16 text-indigo-600 mx-auto mb-4" />
+            <h2 className="text-gray-900 mb-2">Start Your Job Search</h2>
+            <p className="text-gray-600 mb-6">
+              Browse available jobs and start applying to opportunities that match your skills
+            </p>
+            <Link
+              to="/student/jobs"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all"
+            >
+              <Plus className="w-5 h-5" />
+              Browse Jobs
             </Link>
-          ))}
-        </div>
-      </div>
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 }
