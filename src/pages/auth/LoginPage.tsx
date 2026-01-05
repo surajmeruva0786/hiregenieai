@@ -14,13 +14,18 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
 
+    console.log('Attempting login with:', email);
     const response = login(email, password);
+    console.log('Login response:', response);
+
     if (response.success && response.user) {
+      console.log('Login successful, redirecting...');
       // Navigate based on user type
       const redirectPath = response.user.userType === 'student' ? '/student/dashboard' : '/dashboard';
       navigate(redirectPath);
     } else {
-      setError(response.message || 'Login failed');
+      console.error('Login failed:', response.message);
+      setError(response.message || 'Login failed. Please check your credentials.');
     }
   };
 

@@ -28,12 +28,17 @@ export default function SignupPage() {
       organizationName: userType === 'recruiter' ? companyName : undefined
     };
 
+    console.log('Registering user with data:', { ...userData, password: '***' });
     const response = register(userData);
+    console.log('Registration response:', response);
+
     if (response.success && response.user) {
+      console.log('Registration successful, redirecting to dashboard');
       // Navigate based on user type
       const redirectPath = response.user.userType === 'student' ? '/student/dashboard' : '/dashboard';
       navigate(redirectPath);
     } else {
+      console.error('Registration failed:', response.message);
       setError(response.message || 'Registration failed');
     }
   };

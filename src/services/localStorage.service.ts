@@ -93,9 +93,13 @@ export const authService = {
     register: (userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): AuthResponse => {
         const data = getData();
 
+        console.log('Registration attempt for:', userData.email);
+        console.log('Current users count:', data.users.length);
+
         // Check if user already exists
         const existingUser = data.users.find(u => u.email === userData.email);
         if (existingUser) {
+            console.error('User already exists:', userData.email);
             return { success: false, message: 'User with this email already exists' };
         }
 
@@ -107,9 +111,11 @@ export const authService = {
             updatedAt: new Date().toISOString()
         };
 
+        console.log('Creating new user:', newUser);
         data.users.push(newUser);
         data.currentUser = newUser;
         saveData(data);
+        console.log('User registered successfully. Total users:', data.users.length);
 
         return {
             success: true,
@@ -122,11 +128,18 @@ export const authService = {
     login: (email: string, password: string): AuthResponse => {
         const data = getData();
 
+        console.log('Login attempt - Total users in storage:', data.users.length);
+        console.log('Looking for user with email:', email);
+        console.log('All registered emails:', data.users.map(u => u.email));
+
         const user = data.users.find(u => u.email === email && u.password === password);
         if (!user) {
+            console.error('User not found or password mismatch');
+            console.log('Checking email match:', data.users.find(u => u.email === email) ? 'Email exists' : 'Email not found');
             return { success: false, message: 'Invalid email or password' };
         }
 
+        console.log('User found, logging in:', user.email);
         data.currentUser = user;
         saveData(data);
 
