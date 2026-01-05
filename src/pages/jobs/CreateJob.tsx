@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, X } from 'lucide-react';
+import { jobService } from '../../services/localStorage.service';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function CreateJob() {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [skills, setSkills] = useState<Array<{ name: string; weight: number }>>([]);
   const [newSkill, setNewSkill] = useState('');
   const [interviewRounds, setInterviewRounds] = useState([
@@ -41,7 +44,44 @@ export default function CreateJob() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock submission
+
+    if (!currentUser) {
+      console.error('No user logged in');
+      return;
+    }
+
+    // Prepare salary string
+    const salaryString = formData.salary_min && formData.salary_max
+      ? `$${formData.salary_min} - $${formData.salary_max}`
+      : undefined;
+
+    // Prepare experience string
+    const experienceString = formData.experience_min && formData.experience_max
+      ? `${formData.experience_min}-${formData.experience_max} years`
+      : formData.experience_min
+        ? `${formData.experience_min}+ years`
+        : undefined;
+
+    // Create job object
+    const newJob = {
+      title: formData.title,
+      company: currentUser.organizationName || `${currentUser.firstName} ${currentUser.lastName}`,
+      location: formData.location,
+      type: formData.type as 'full-time' | 'part-time' | 'contract' | 'internship',
+      experience: experienceString || '0+ years',
+      salary: salaryString,
+      description: formData.description,
+      requirements: [`${formData.experience_min || 0}+ years of experience`, formData.description],
+      skills: skills.map(s => s.name),
+      status: 'active' as const,
+      recruiterId: currentUser.id,
+    };
+
+    console.log('Creating job:', newJob);
+    const createdJob = jobService.create(newJob);
+    console.log('Job created successfully:', createdJob);
+
+    // Navigate back to jobs list
     navigate('/dashboard/jobs');
   };
 

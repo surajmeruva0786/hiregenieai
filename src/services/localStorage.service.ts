@@ -131,6 +131,19 @@ export const authService = {
         console.log('Login attempt - Total users in storage:', data.users.length);
         console.log('Looking for user with email:', email);
         console.log('All registered emails:', data.users.map(u => u.email));
+        console.log('Attempting login with password:', password);
+
+        // Check if email exists first
+        const userByEmail = data.users.find(u => u.email === email);
+        if (userByEmail) {
+            console.log('User found with email:', userByEmail.email);
+            console.log('Stored password:', userByEmail.password);
+            console.log('Entered password:', password);
+            console.log('Passwords match:', userByEmail.password === password);
+            console.log('User type:', userByEmail.userType);
+        } else {
+            console.error('No user found with email:', email);
+        }
 
         const user = data.users.find(u => u.email === email && u.password === password);
         if (!user) {
@@ -160,6 +173,40 @@ export const authService = {
     getCurrentUser: (): User | null => {
         const data = getData();
         return data.currentUser;
+    },
+
+    updateUser: (userId: string, updates: Partial<User>): AuthResponse => {
+        const data = getData();
+
+        console.log('Updating user:', userId, updates);
+
+        // Find and update user in users array
+        const userIndex = data.users.findIndex(u => u.id === userId);
+        if (userIndex === -1) {
+            console.error('User not found for update');
+            return { success: false, message: 'User not found' };
+        }
+
+        // Update user
+        data.users[userIndex] = {
+            ...data.users[userIndex],
+            ...updates,
+            updatedAt: new Date().toISOString()
+        };
+
+        // If this is the current user, update currentUser as well
+        if (data.currentUser && data.currentUser.id === userId) {
+            data.currentUser = data.users[userIndex];
+        }
+
+        saveData(data);
+        console.log('User updated successfully');
+
+        return {
+            success: true,
+            user: data.users[userIndex],
+            message: 'Profile updated successfully'
+        };
     },
 
     isAuthenticated: (): boolean => {
@@ -306,6 +353,22 @@ export const applicationService = {
 
         data.applications.push(newApplication);
         saveData(data);
+
+        // Get job and applicant details for notification
+        const job = data.jobs.find(j => j.id === applicationData.jobId);
+        const applicant = data.users.find(u => u.id === applicationData.candidateId);
+
+        // Create notification for the recruiter
+        if (job && applicant) {
+            console.log('Creating notification for recruiter:', job.recruiterId);
+            console.log('Applicant:', applicant.firstName, applicant.lastName);
+            console.log('Job:', job.title);
+
+            // In a real app, this would send an email or push notification
+            // For now, we'll just log it
+            console.log(`📧 NOTIFICATION: ${applicant.firstName} ${applicant.lastName} applied to ${job.title}`);
+        }
+
         return newApplication;
     },
 

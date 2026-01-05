@@ -1,96 +1,59 @@
 import { Link } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Search, Filter, MapPin, DollarSign, Clock, Users, MoreVertical } from 'lucide-react';
+import { jobService } from '../../services/localStorage.service';
+import { useAuth } from '../../hooks/useAuth';
+import type { Job } from '../../types';
 
 export default function JobsList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const { currentUser } = useAuth();
 
-  const jobs = [
-    {
-      id: 1,
-      title: 'Senior Frontend Developer',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '$120k - $160k',
-      applicants: 45,
-      shortlisted: 8,
-      status: 'Active',
-      postedDate: '2025-12-20',
-      daysOpen: 5,
-    },
-    {
-      id: 2,
-      title: 'Product Manager',
-      department: 'Product',
-      location: 'New York, NY',
-      type: 'Full-time',
-      salary: '$130k - $180k',
-      applicants: 67,
-      shortlisted: 12,
-      status: 'Active',
-      postedDate: '2025-12-13',
-      daysOpen: 12,
-    },
-    {
-      id: 3,
-      title: 'UX Designer',
-      department: 'Design',
-      location: 'San Francisco, CA',
-      type: 'Full-time',
-      salary: '$100k - $140k',
-      applicants: 34,
-      shortlisted: 6,
-      status: 'Active',
-      postedDate: '2025-12-22',
-      daysOpen: 3,
-    },
-    {
-      id: 4,
-      title: 'Backend Engineer',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '$110k - $150k',
-      applicants: 52,
-      shortlisted: 9,
-      status: 'Active',
-      postedDate: '2025-12-17',
-      daysOpen: 8,
-    },
-    {
-      id: 5,
-      title: 'Marketing Manager',
-      department: 'Marketing',
-      location: 'Austin, TX',
-      type: 'Full-time',
-      salary: '$90k - $120k',
-      applicants: 28,
-      shortlisted: 4,
-      status: 'Draft',
-      postedDate: '2025-12-24',
-      daysOpen: 1,
-    },
-    {
-      id: 6,
-      title: 'Data Scientist',
-      department: 'Data',
-      location: 'Remote',
-      type: 'Full-time',
-      salary: '$140k - $190k',
-      applicants: 41,
-      shortlisted: 7,
-      status: 'Active',
-      postedDate: '2025-12-15',
-      daysOpen: 10,
-    },
-  ];
+  // Load jobs from localStorage
+  useEffect(() => {
+    const loadJobs = () => {
+      if (currentUser) {
+        // Get jobs created by current user
+        const userJobs = jobService.getByRecruiter(currentUser.id);
+        console.log('Loaded jobs for user:', currentUser.id, userJobs);
+        setJobs(userJobs);
+      }
+    };
+
+    loadJobs();
+
+    // Reload jobs when component becomes visible (e.g., after creating a job)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadJobs();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Also reload on focus
+    window.addEventListener('focus', loadJobs);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', loadJobs);
+    };
+  }, [currentUser]);
+
+  const calculateDaysOpen = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - created.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
   const filteredJobs = jobs.filter((job) => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.department.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || job.status.toLowerCase() === statusFilter.toLowerCase();
+      job.company.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || job.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -154,16 +117,15 @@ export default function JobsList() {
                 <div className="flex items-center gap-2 mb-2">
                   <h2 className="text-gray-900">{job.title}</h2>
                   <span
-                    className={`px-2 py-1 rounded-full ${
-                      job.status === 'Active'
+                    className={`px-2 py-1 rounded-full ${job.status === 'active'
                         ? 'bg-green-100 text-green-700'
                         : 'bg-gray-100 text-gray-700'
-                    }`}
+                      }`}
                   >
-                    {job.status}
+                    {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                   </span>
                 </div>
-                <p className="text-gray-600">{job.department}</p>
+                <p className="text-gray-600">{job.company}</p>
               </div>
               <button className="p-2 hover:bg-gray-100 rounded-lg">
                 <MoreVertical className="w-5 h-5 text-gray-500" />
@@ -181,18 +143,18 @@ export default function JobsList() {
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <Clock className="w-4 h-4" />
-                <span>{job.daysOpen} days open</span>
+                <span>{calculateDaysOpen(job.createdAt)} days open</span>
               </div>
               <div className="flex items-center gap-2 text-gray-600">
                 <Users className="w-4 h-4" />
-                <span>{job.applicants} applicants</span>
+                <span>0 applicants</span>
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
               <div className="flex gap-4 text-gray-600">
-                <span>{job.shortlisted} shortlisted</span>
-                <span>{job.type}</span>
+                <span>0 shortlisted</span>
+                <span>{job.type.charAt(0).toUpperCase() + job.type.slice(1).replace('-', ' ')}</span>
               </div>
               <Link
                 to={`/dashboard/jobs/${job.id}`}
