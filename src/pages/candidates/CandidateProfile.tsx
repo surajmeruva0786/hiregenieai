@@ -38,9 +38,32 @@ export default function CandidateProfile() {
       if (app) {
         setApplication(app);
 
-        // Fetch candidate data
-        const cand = candidateService.getById(app.candidateId);
-        setCandidate(cand || null);
+        // Fetch user data (the candidateId is actually a user ID)
+        const data = JSON.parse(localStorage.getItem('hiregenie_data') || '{}');
+        const user: any = data.users?.find((u: any) => u.id === app.candidateId);
+
+        if (user) {
+          // Convert User to Candidate format with safe defaults
+          const candidateData: Candidate = {
+            id: user.id,
+            firstName: user.firstName || 'Unknown',
+            lastName: user.lastName || 'User',
+            email: user.email || '',
+            phone: user.phone || 'Not provided',
+            location: user.location || 'Not specified',
+            skills: Array.isArray(user.skills) ? user.skills : [],
+            experience: typeof user.experience === 'number' ? user.experience : 0,
+            education: user.education || 'Not specified',
+            summary: user.summary || `${user.firstName} ${user.lastName} is a ${user.userType === 'student' ? 'student' : 'professional'} looking for opportunities.`,
+            linkedIn: user.linkedIn || '',
+            github: user.github || '',
+            portfolio: user.portfolio || '',
+            resumeUrl: user.resumeUrl || '',
+            createdAt: user.createdAt || new Date().toISOString(),
+            updatedAt: user.updatedAt || new Date().toISOString()
+          };
+          setCandidate(candidateData);
+        }
 
         // Fetch job data
         const jobData = jobService.getById(app.jobId);
