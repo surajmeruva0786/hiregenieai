@@ -79,11 +79,53 @@ export interface AuthResponse {
     message?: string;
 }
 
+export interface WorkflowTrigger {
+    type: 'application_created' | 'application_status_changed' | 'ai_score_calculated' | 'manual';
+    config?: any;
+}
+
+export interface WorkflowCondition {
+    field: string;
+    operator: 'equals' | 'greater_than' | 'less_than' | 'contains' | 'not_equals';
+    value: any;
+}
+
+export interface WorkflowAction {
+    type: 'update_status' | 'send_notification' | 'add_note';
+    config: any;
+}
+
+export interface WorkflowExecution {
+    id: string;
+    workflowId: string;
+    executedAt: string;
+    success: boolean;
+    triggerData: any;
+    error?: string;
+}
+
+export interface Workflow {
+    id: string;
+    name: string;
+    description: string;
+    trigger: WorkflowTrigger;
+    conditions: WorkflowCondition[];
+    actions: WorkflowAction[];
+    status: 'active' | 'paused';
+    createdBy: string;
+    createdAt: string;
+    updatedAt: string;
+    executionCount: number;
+    lastExecutedAt?: string;
+}
+
 export interface StorageData {
     users: User[];
     jobs: Job[];
     candidates: Candidate[];
     applications: Application[];
     interviews: Interview[];
+    workflows: Workflow[];
+    workflowExecutions: WorkflowExecution[];
     currentUser: User | null;
 }

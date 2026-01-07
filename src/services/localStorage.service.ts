@@ -7,6 +7,7 @@ import type {
     AuthResponse,
     StorageData
 } from '../types';
+import { workflowEngine } from './workflowEngine.service';
 
 const STORAGE_KEY = 'hiregenie_data';
 
@@ -61,6 +62,8 @@ const initializeStorage = (): StorageData => {
         candidates: [],
         applications: [],
         interviews: [],
+        workflows: [],
+        workflowExecutions: [],
         currentUser: null
     };
 
@@ -369,6 +372,16 @@ export const applicationService = {
             console.log(`📧 NOTIFICATION: ${applicant.firstName} ${applicant.lastName} applied to ${job.title}`);
         }
 
+        // Trigger workflows for application created
+        setTimeout(() => {
+            workflowEngine.triggerWorkflows('application_created', {
+                ...newApplication,
+                applicationId: newApplication.id,
+                jobTitle: job?.title,
+                candidateName: applicant ? `${applicant.firstName} ${applicant.lastName}` : 'Unknown',
+            }).catch(err => console.error('Workflow trigger error:', err));
+        }, 100);
+
         return newApplication;
     },
 
@@ -378,8 +391,26 @@ export const applicationService = {
 
         if (index === -1) return null;
 
+        const oldStatus = data.applications[index].status;
         data.applications[index].status = status;
         saveData(data);
+
+        // Trigger workflows for status change
+        const application = data.applications[index];
+        const job = data.jobs.find(j => j.id === application.jobId);
+        const applicant = data.users.find(u => u.id === application.candidateId);
+
+        setTimeout(() => {
+            workflowEngine.triggerWorkflows('application_status_changed', {
+                ...application,
+                applicationId: application.id,
+                oldStatus,
+                newStatus: status,
+                jobTitle: job?.title,
+                candidateName: applicant ? `${applicant.firstName} ${applicant.lastName}` : 'Unknown',
+            }).catch(err => console.error('Workflow trigger error:', err));
+        }, 100);
+
         return data.applications[index];
     }
 };
