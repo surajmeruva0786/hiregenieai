@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Video, Mic, MicOff, Camera, CameraOff, MessageSquare, Clock, CheckCircle2, Send, Sparkles } from 'lucide-react';
+import { Clock, CheckCircle2, Send, Sparkles, AlertCircle } from 'lucide-react';
+import VideoCall from '../../components/interview/VideoCall';
+import AIInterviewer from '../../components/interview/AIInterviewer';
+import { useInterview } from '../../hooks/useInterview';
+import { useWebSocket } from '../../hooks/useWebSocket';
 
 export default function TakeInterview() {
   const { id } = useParams();
@@ -9,41 +13,85 @@ export default function TakeInterview() {
   const [isStarted, setIsStarted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [timeLeft, setTimeLeft] = useState(45 * 60); // 45 minutes
-  const [isMicOn, setIsMicOn] = useState(true);
-  const [isCameraOn, setIsCameraOn] = useState(true);
   const [userAnswer, setUserAnswer] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [interview, setInterview] = useState<any>(null);
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [feedback, setFeedback] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const interview = {
-    id: parseInt(id || '1'),
-    company: 'Tech Corp',
-    position: 'Senior Frontend Developer',
-    type: 'AI Technical Interview',
-    duration: 45,
-    totalQuestions: 10,
-  };
+  const { getInterview, startRealtimeSession, loading } = useInterview();
+  const {
+    isConnected,
+    connect,
+    disconnect,
+    joinInterview,
+    startRealtimeSession: wsStartSession,
+    submitAnswer: wsSubmitAnswer,
+    requestFeedback,
+    on,
+    off,
+  } = useWebSocket();
 
-  const questions = [
-    {
-      id: 1,
-      type: 'technical',
-      question: 'Explain the difference between useMemo and useCallback hooks in React. When would you use each?',
-      timeLimit: 5,
-    },
-    {
-      id: 2,
-      type: 'technical',
-      question: 'How would you optimize the performance of a React application with a large list of items?',
-      timeLimit: 5,
-    },
-    {
-      id: 3,
-      type: 'behavioral',
-      question: 'Tell me about a time when you had to solve a challenging technical problem. What was your approach?',
-      timeLimit: 5,
-    },
-  ];
+  // Load interview data
+  useEffect(() => {
+    if (id) {
+      loadInterview();
+    }
+  }, [id]);
 
+  // Connect WebSocket
+  useEffect(() => {
+    connect();
+    return () => disconnect();
+  }, [connect, disconnect]);
+
+  // Setup WebSocket listeners
+  useEffect(() => {
+    if (!isConnected) return;
+
+    on('session-started', (data: any) => {
+      setSessionId(data.sessionId);
+      if (data.firstQuestion) {
+        setQuestions([data.firstQuestion]);
+        setCurrentQuestion(0);
+      }
+    });
+
+    on('answer-evaluated', (data: any) => {
+      setIsSubmitting(false);
+
+      if (data.isComplete) {
+        // Interview complete
+        navigate('/student/interviews');
+      } else if (data.followUpQuestion) {
+        // Add follow-up question
+        setQuestions(prev => [...prev, { content: data.followUpQuestion, speaker: 'interviewer' }]);
+      } else if (data.nextQuestion) {
+        // Move to next question
+        setCurrentQuestion(prev => prev + 1);
+      }
+    });
+
+    on('feedback-update', (data: any) => {
+      setFeedback(data);
+    });
+
+    on('error', (data: any) => {
+      setError(data.message);
+      setIsSubmitting(false);
+    });
+
+    return () => {
+      off('session-started');
+      off('answer-evaluated');
+      off('feedback-update');
+      off('error');
+    };
+  }, [isConnected, on, off, navigate]);
+
+  // Timer
   useEffect(() => {
     if (isStarted && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
@@ -51,36 +99,90 @@ export default function TakeInterview() {
     }
   }, [isStarted, timeLeft]);
 
+  // Request feedback periodically
+  useEffect(() => {
+    if (isStarted && sessionId) {
+      const interval = setInterval(() => {
+        requestFeedback(sessionId);
+      }, 10000); // Every 10 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [isStarted, sessionId, requestFeedback]);
+
+  const loadInterview = async () => {
+    try {
+      const data = await getInterview(id!);
+      setInterview(data);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleStart = () => {
-    setIsStarted(true);
-  };
+  const handleStart = async () => {
+    try {
+      setIsStarted(true);
 
-  const handleNextQuestion = () => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      if (currentQuestion < questions.length - 1) {
-        setCurrentQuestion(currentQuestion + 1);
-        setUserAnswer('');
-        setIsSubmitting(false);
-      } else {
-        // Interview complete
-        navigate('/student/interviews');
+      // Join interview room
+      if (id) {
+        const userId = localStorage.getItem('userId') || 'user-1';
+        joinInterview(id, userId);
+
+        // Start real-time session
+        wsStartSession(id);
       }
-    }, 1500);
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
-  const handleSubmitInterview = () => {
+  const handleSubmitAnswer = async () => {
+    if (!userAnswer.trim() || !sessionId) return;
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      navigate('/student/interviews');
-    }, 2000);
+    try {
+      wsSubmitAnswer(sessionId, userAnswer, false);
+      setUserAnswer('');
+    } catch (err: any) {
+      setError(err.message);
+      setIsSubmitting(false);
+    }
   };
+
+  if (loading && !interview) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <Sparkles className="w-12 h-12 text-indigo-600 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-600">Loading interview...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !interview) {
+    return (
+      <div className="max-w-2xl mx-auto mt-12">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
+          <AlertCircle className="w-12 h-12 text-red-600 mx-auto mb-4" />
+          <h2 className="text-red-900 text-xl font-semibold mb-2">Error Loading Interview</h2>
+          <p className="text-red-700 mb-4">{error}</p>
+          <button
+            onClick={() => navigate('/student/interviews')}
+            className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+          >
+            Back to Interviews
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!isStarted) {
     return (
@@ -92,34 +194,34 @@ export default function TakeInterview() {
         >
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <Video className="w-10 h-10 text-white" />
+              <Sparkles className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-gray-900 mb-2">Ready to Start Your AI Interview?</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Ready to Start Your AI Interview?</h1>
             <p className="text-gray-600">
-              {interview.company} - {interview.position}
+              {interview?.jobId || 'Position'} - AI Technical Interview
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="p-6 bg-purple-50 border border-purple-200 rounded-xl text-center">
               <Clock className="w-8 h-8 text-purple-600 mx-auto mb-2" />
-              <h3 className="text-gray-900 mb-1">{interview.duration} Minutes</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">45 Minutes</h3>
               <p className="text-gray-600">Total Duration</p>
             </div>
             <div className="p-6 bg-blue-50 border border-blue-200 rounded-xl text-center">
-              <MessageSquare className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-              <h3 className="text-gray-900 mb-1">{interview.totalQuestions} Questions</h3>
+              <CheckCircle2 className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">5-10 Questions</h3>
               <p className="text-gray-600">To Answer</p>
             </div>
             <div className="p-6 bg-green-50 border border-green-200 rounded-xl text-center">
               <Sparkles className="w-8 h-8 text-green-600 mx-auto mb-2" />
-              <h3 className="text-gray-900 mb-1">AI Powered</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">AI Powered</h3>
               <p className="text-gray-600">Smart Assessment</p>
             </div>
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8">
-            <h3 className="text-blue-900 mb-4">Before You Start:</h3>
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">Before You Start:</h3>
             <ul className="space-y-3 text-blue-800">
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -135,29 +237,38 @@ export default function TakeInterview() {
               </li>
               <li className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <span>You can skip questions, but try to answer all of them</span>
+                <span>The AI will adapt questions based on your responses</span>
               </li>
             </ul>
           </div>
 
+          {!isConnected && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+              <p className="text-yellow-800 text-sm">Connecting to interview server...</p>
+            </div>
+          )}
+
           <div className="flex gap-4">
             <button
               onClick={() => navigate('/student/interviews')}
-              className="flex-1 py-4 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors"
+              className="flex-1 py-4 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
             >
               Cancel
             </button>
             <button
               onClick={handleStart}
-              className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/50 transition-all"
+              disabled={!isConnected}
+              className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:shadow-lg hover:shadow-purple-500/50 transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Start Interview
+              {isConnected ? 'Start Interview' : 'Connecting...'}
             </button>
           </div>
         </motion.div>
       </div>
     );
   }
+
+  const currentQ = questions[currentQuestion];
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -174,19 +285,18 @@ export default function TakeInterview() {
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-indigo-600" />
-                  <span className="text-gray-900">{formatTime(timeLeft)}</span>
+                  <span className="text-lg font-semibold text-gray-900">{formatTime(timeLeft)}</span>
                 </div>
                 <span className="text-gray-500">•</span>
                 <span className="text-gray-600">
-                  Question {currentQuestion + 1} of {questions.length}
+                  Question {currentQuestion + 1}
                 </span>
               </div>
-              <div className="w-32 bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-indigo-600 to-purple-600 h-2 rounded-full transition-all"
-                  style={{ width: `${((currentQuestion + 1) / questions.length) * 100}%` }}
-                ></div>
-              </div>
+              {feedback && (
+                <div className="text-sm text-gray-600">
+                  Score: <span className="font-semibold text-indigo-600">{feedback.averageScore}/10</span>
+                </div>
+              )}
             </div>
           </motion.div>
 
@@ -194,172 +304,69 @@ export default function TakeInterview() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative bg-gray-900 rounded-2xl overflow-hidden aspect-video"
+            className="aspect-video"
           >
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <Camera className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">Camera {isCameraOn ? 'Active' : 'Off'}</p>
-              </div>
-            </div>
-            {/* Controls */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-4">
-              <button
-                onClick={() => setIsMicOn(!isMicOn)}
-                className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-                  isMicOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-500 hover:bg-red-600'
-                }`}
-              >
-                {isMicOn ? (
-                  <Mic className="w-6 h-6 text-white" />
-                ) : (
-                  <MicOff className="w-6 h-6 text-white" />
-                )}
-              </button>
-              <button
-                onClick={() => setIsCameraOn(!isCameraOn)}
-                className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
-                  isCameraOn ? 'bg-white/20 hover:bg-white/30' : 'bg-red-500 hover:bg-red-600'
-                }`}
-              >
-                {isCameraOn ? (
-                  <Camera className="w-6 h-6 text-white" />
-                ) : (
-                  <CameraOff className="w-6 h-6 text-white" />
-                )}
-              </button>
-            </div>
+            <VideoCall />
           </motion.div>
 
-          {/* Question */}
+          {/* Answer Input */}
           <AnimatePresence mode="wait">
             <motion.div
               key={currentQuestion}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm"
+              className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm"
             >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
-                  <span className="text-white">{currentQuestion + 1}</span>
-                </div>
-                <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg">
-                  {questions[currentQuestion].type}
-                </span>
-              </div>
-              <h3 className="text-gray-900 mb-6">{questions[currentQuestion].question}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Answer</h3>
 
               <div className="space-y-4">
                 <textarea
                   value={userAnswer}
                   onChange={(e) => setUserAnswer(e.target.value)}
-                  placeholder="Type your answer here or speak to record..."
+                  placeholder="Type your answer here..."
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 h-32 resize-none"
                   disabled={isSubmitting}
                 />
 
-                <div className="flex gap-3">
-                  {currentQuestion < questions.length - 1 ? (
+                {error && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-red-700 text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSubmitAnswer}
+                  disabled={isSubmitting || !userAnswer.trim()}
+                  className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+                >
+                  {isSubmitting ? (
                     <>
-                      <button
-                        onClick={handleNextQuestion}
-                        disabled={isSubmitting}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
-                      >
-                        {isSubmitting ? 'Submitting...' : 'Next Question'}
-                        <Send className="w-4 h-4" />
-                      </button>
+                      <Sparkles className="w-5 h-5 animate-spin" />
+                      Processing...
                     </>
                   ) : (
-                    <button
-                      onClick={handleSubmitInterview}
-                      disabled={isSubmitting}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
-                    >
-                      {isSubmitting ? 'Submitting...' : 'Complete Interview'}
-                      <CheckCircle2 className="w-5 h-5" />
-                    </button>
+                    <>
+                      Submit Answer
+                      <Send className="w-4 h-4" />
+                    </>
                   )}
-                </div>
+                </button>
               </div>
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* AI Assistant */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-6 text-white"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <Sparkles className="w-6 h-6" />
-              <h3>AI Assistant</h3>
-            </div>
-            <p className="text-indigo-100 mb-4">
-              I'm analyzing your responses in real-time. Speak clearly and be authentic!
-            </p>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-indigo-100">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Good pace</span>
-              </div>
-              <div className="flex items-center gap-2 text-indigo-100">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Clear communication</span>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Questions Progress */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm"
-          >
-            <h3 className="text-gray-900 mb-4">Progress</h3>
-            <div className="space-y-3">
-              {questions.map((q, index) => (
-                <div
-                  key={q.id}
-                  className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-                    index < currentQuestion
-                      ? 'bg-green-50 border border-green-200'
-                      : index === currentQuestion
-                      ? 'bg-indigo-50 border border-indigo-200'
-                      : 'bg-gray-50 border border-gray-200'
-                  }`}
-                >
-                  <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      index < currentQuestion
-                        ? 'bg-green-600'
-                        : index === currentQuestion
-                        ? 'bg-indigo-600'
-                        : 'bg-gray-300'
-                    }`}
-                  >
-                    {index < currentQuestion ? (
-                      <CheckCircle2 className="w-5 h-5 text-white" />
-                    ) : (
-                      <span className="text-white">{index + 1}</span>
-                    )}
-                  </div>
-                  <span
-                    className={
-                      index <= currentQuestion ? 'text-gray-900' : 'text-gray-500'
-                    }
-                  >
-                    Question {index + 1}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
+        {/* Sidebar - AI Interviewer */}
+        <div>
+          <AIInterviewer
+            currentQuestion={currentQ?.content}
+            questionType={interview?.interviewType}
+            questionNumber={currentQuestion + 1}
+            totalQuestions={questions.length}
+            feedback={feedback}
+            isProcessing={isSubmitting}
+          />
         </div>
       </div>
     </div>

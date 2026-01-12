@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { InterviewService } from '../services/interview.service';
+import { RealtimeInterviewService } from '../services/realtime-interview.service';
+import { VideoMeetingService } from '../services/video-meeting.service';
+import { SpeechToTextService } from '../services/speech-to-text.service';
 import Interview from '../models/mongodb/Interview';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
@@ -105,6 +108,135 @@ export const getInterviews = asyncHandler(
                 limit: Number(limit),
                 total,
             },
+        });
+    }
+);
+
+/**
+ * Schedule a meeting for interview
+ */
+export const scheduleMeeting = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+        const { scheduledTime, createZoomMeeting } = req.body;
+
+        if (!req.user) {
+            throw new AppError('Unauthorized', 401);
+        }
+
+        const interview = await Interview.findOne({
+            _id: id,
+            organizationId: req.user.organizationId,
+        });
+
+        if (!interview) {
+            throw new AppError('Interview not found', 404);
+        }
+
+        const meetingRoom = await VideoMeetingService.createMeetingRoom(
+            id,
+            req.user.userId,
+            interview.candidateId,
+            new Date(scheduledTime),
+            createZoomMeeting
+        );
+
+        res.status(200).json({
+            success: true,
+            data: meetingRoom,
+        });
+    }
+);
+
+/**
+ * Start real-time interview session
+ */
+export const startRealtimeInterview = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+
+        const session = await RealtimeInterviewService.startRealtimeSession(id);
+
+        res.status(200).json({
+            success: true,
+            data: session,
+        });
+    }
+);
+
+/**
+ * Submit voice answer
+ */
+export const submitVoiceAnswer = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+        const { sessionId, answer, isVoice } = req.body;
+
+        const result = await RealtimeInterviewService.submitRealtimeAnswer(
+            sessionId,
+            answer,
+            isVoice
+        );
+
+        res.status(200).json({
+            success: true,
+            data: result,
+        });
+    }
+);
+
+/**
+ * Get interview transcript
+ */
+export const getTranscript = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+
+        const transcript = SpeechToTextService.getTranscript(id);
+
+        if (!transcript) {
+            throw new AppError('Transcript not found', 404);
+        }
+
+        res.status(200).json({
+            success: true,
+            data: transcript,
+        });
+    }
+);
+
+/**
+ * Generate next question
+ */
+export const generateNextQuestion = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { id } = req.params;
+        const { sessionId, previousScore } = req.body;
+
+        const question = await RealtimeInterviewService.generateAdaptiveQuestion(
+            sessionId,
+            previousScore
+        );
+
+        res.status(200).json({
+            success: true,
+            data: { question },
+        });
+    }
+);
+
+/**
+ * Get real-time feedback
+ */
+export const getRealtimeFeedback = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { sessionId } = req.params;
+
+        const feedback = await RealtimeInterviewService.getRealtimeFeedback(sessionId);
+
+        res.status(200).json({
+            success: true,
+            data: feedback,
         });
     }
 );
