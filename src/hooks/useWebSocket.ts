@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000';
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
 
 interface UseWebSocketOptions {
     autoConnect?: boolean;
@@ -90,7 +90,7 @@ export const useWebSocket = (options: UseWebSocketOptions = {}) => {
     }, [emit]);
 
     const startRealtimeSession = useCallback((interviewId: string) => {
-        emit('start-realtime-session', { interviewId });
+        emit('start-session', { interviewId });
     }, [emit]);
 
     const submitAnswer = useCallback((sessionId: string, answer: string, isVoice: boolean = false) => {

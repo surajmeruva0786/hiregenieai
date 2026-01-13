@@ -4,6 +4,9 @@ import Resume from '../models/mongodb/Resume';
 import { resumeQueue } from '../queues';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { logger } from '../utils/logger';
+import { ResumeParserService } from '../services/parser.service';
+import { SkillExtractionService } from '../services/skill-extraction.service';
+import { EmbeddingService } from '../services/embedding.service';
 
 /**
  * Upload single resume
@@ -180,3 +183,118 @@ export const getResumes = asyncHandler(
         });
     }
 );
+
+/**
+ * Parse resume with AI extraction (for direct parsing without upload)
+ */
+export const parseResumeWithAI = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        if (!req.file) {
+            throw new AppError('No file uploaded', 400);
+        }
+
+        try {
+            logger.info(`Starting AI resume parsing for: ${req.file.originalname}`);
+
+            // Parse resume text
+            const resumeText = await ResumeParserService.parseResume(
+                req.file.path,
+                req.file.mimetype
+            );
+
+            const cleanedText = ResumeParserService.cleanText(resumeText);
+
+            // Extract data using AI
+            const [skills, experience, education, projects, personalInfo] = await Promise.all([
+                SkillExtractionService.extractSkills(cleanedText),
+                SkillExtractionService.extractExperience(cleanedText),
+                SkillExtractionService.extractEducation(cleanedText),
+                SkillExtractionService.extractProjects(cleanedText),
+                SkillExtractionService.extractPersonalInfo(cleanedText),
+            ]);
+
+            // Generate embedding for semantic matching
+            let embedding: number[] | null = null;
+            try {
+                embedding = await EmbeddingService.generateEmbedding(cleanedText);
+            } catch (error) {
+                logger.warn('Failed to generate embedding:', error);
+            }
+
+            // Calculate total experience
+            const experienceText = experience.map((e: any) =>
+                `${e.title} at ${e.company} (${e.startDate} - ${e.endDate || 'Present'})`
+            ).join('\n');
+
+            const totalExperienceYears = ResumeParserService.calculateExperience(experienceText);
+
+            // Extract contact info
+            const email = personalInfo.email || ResumeParserService.extractEmail(cleanedText);
+            const phone = personalInfo.phone || ResumeParserService.extractPhone(cleanedText);
+            const linkedin = personalInfo.linkedin || ResumeParserService.extractLinkedIn(cleanedText);
+            const github = personalInfo.github || ResumeParserService.extractGitHub(cleanedText);
+
+            const parsedData = {
+                personalInfo: {
+                    name: personalInfo.name || 'Unknown',
+                    email,
+                    phone,
+                    location: personalInfo.location,
+                    linkedin,
+                    github,
+                    portfolio: personalInfo.portfolio,
+                },
+                skills,
+                experience,
+                education,
+                projects,
+                totalExperienceYears,
+                resumeEmbedding: embedding,
+                rawText: cleanedText,
+            };
+
+            logger.info(`AI parsing completed successfully for: ${req.file.originalname}`);
+
+            res.status(200).json({
+                success: true,
+                data: parsedData,
+                message: 'Resume parsed successfully with AI',
+            });
+        } catch (error: any) {
+            logger.error('AI resume parsing error:', error);
+            throw new AppError(
+                `Failed to parse resume: ${error.message}`,
+                500
+            );
+        }
+    }
+);
+
+/**
+ * Extract skills from text (utility endpoint)
+ */
+export const extractSkillsFromText = asyncHandler(
+    async (req: Request, res: Response, next: NextFunction) => {
+        const { text } = req.body;
+
+        if (!text) {
+            throw new AppError('Text is required', 400);
+        }
+
+        try {
+            const skills = await SkillExtractionService.extractSkills(text);
+
+            res.status(200).json({
+                success: true,
+                data: { skills },
+            });
+        } catch (error: any) {
+            logger.error('Skill extraction error:', error);
+            throw new AppError(
+                `Failed to extract skills: ${error.message}`,
+                500
+            );
+        }
+    }
+);
+

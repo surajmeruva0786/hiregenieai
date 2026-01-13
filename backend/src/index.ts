@@ -1,4 +1,5 @@
 import express, { Application } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -7,12 +8,19 @@ import dotenv from 'dotenv';
 import { logger } from './utils/logger';
 import { errorHandler } from './middleware/error.middleware';
 import routes from './routes';
+import { setupWebSocket } from './websocket';
 
 // Load environment variables
 dotenv.config();
 
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
+
+// Create HTTP server for WebSocket
+const httpServer = createServer(app);
+
+// Setup WebSocket
+const io = setupWebSocket(httpServer);
 
 // Middleware
 app.use(helmet()); // Security headers
@@ -32,7 +40,8 @@ app.get('/health', (_req, res) => {
         mode: 'localStorage',
         message: 'Running in localStorage mode - no database required',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        websocket: 'enabled',
     });
 });
 
@@ -47,12 +56,13 @@ const startServer = async () => {
     try {
         logger.info('🎯 Starting in localStorage mode (no database required)');
 
-        // Start server
-        app.listen(PORT, () => {
+        // Start server with WebSocket support
+        httpServer.listen(PORT, () => {
             logger.info(`🚀 Server running on port ${PORT}`);
             logger.info(`📊 Environment: ${process.env.NODE_ENV}`);
             logger.info(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}`);
             logger.info(`💾 Data persistence: localStorage (client-side)`);
+            logger.info(`🔌 WebSocket: enabled`);
         });
     } catch (error) {
         logger.error('Failed to start server:', error);
@@ -75,9 +85,13 @@ process.on('uncaughtException', (error) => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
     logger.info('SIGTERM signal received: closing HTTP server');
-    process.exit(0);
+    httpServer.close(() => {
+        logger.info('HTTP server closed');
+        process.exit(0);
+    });
 });
 
 startServer();
 
 export default app;
+
